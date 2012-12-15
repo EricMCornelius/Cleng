@@ -192,7 +192,10 @@ protected:
   virtual void ExecuteAction() {
     getCompilerInstance().getPreprocessor().addPPCallbacks(new PreprocessorCallbacks(getCompilerInstance().getPreprocessor()));
     PluginASTAction::ExecuteAction();
-    printStructs();
+    if (print_structs)
+      printStructs();
+    if (print_functions)
+      printFuncs();
   }
 
   bool ParseArgs(const CompilerInstance &CI,

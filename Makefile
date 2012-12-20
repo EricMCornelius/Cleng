@@ -1,12 +1,16 @@
 sources = plugin.cpp
 
-plugin.so: ${sources}
-	clang++ plugin.cpp -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -shared -fPIC -o plugin.so -L/usr/lib64/llvm -lclang -std=c++11 -Wno-dangling-field
+all: plugin.so serializer.tsk
 
-all: plugin.so
+plugin.so: ${sources}
+	clang++ plugin.cpp -fno-rtti ${CXXFLAGS} -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -shared -fPIC -o plugin.so -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lclang -lLLVMSupport -std=c++11
+
+serializer.tsk: serializer_example.cpp serializer.h
+	clang++ serializer_example.cpp -std=c++11 -o serializer.tsk
 
 clean:
 	rm plugin.so
+	rm serializer.tsk
 
-.PHONY: all clean
+.PHONY: clean
 

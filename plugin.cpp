@@ -9,6 +9,8 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/Lex/Preprocessor.h"
 
+#include "serializer.h"
+
 #include <iostream>
 #include <map>
 #include <string>
@@ -17,10 +19,12 @@
 
 using namespace clang;
 
-namespace {
-
-typedef std::map<std::string, std::vector<std::pair<std::string, std::string>>> EAV;
+typedef std::pair<std::string, std::string> AV;
+typedef std::vector<AV> AVV;
+typedef std::map<std::string, AVV> EAV;
 typedef std::map<std::string, PresumedLoc> LM;
+
+namespace {
 
 EAV StructDefs;
 LM StructLocs;
@@ -107,10 +111,6 @@ public:
     Visitor.TraverseDecl(Context.getTranslationUnitDecl());
   }
 
-  virtual void GetPPMutationListener() {
-
-  }
-
 private:
   PrintFunctionsVisitor Visitor;
 };
@@ -155,8 +155,7 @@ private:
   Preprocessor& _processor;
 };
 
-bool print_structs = false;
-bool print_functions = false;
+//typedef std::map<std::string, std::vector<std::pair<std::string, std::string>>> EAV;
 
 void printStructs() {
   for (auto& record : StructDefs) {
@@ -167,6 +166,9 @@ void printStructs() {
     }
     std::cout << "};\n\n";
   }
+
+  JsonStream js;
+  format(js, StructDefs);
 }
 
 void printFuncs() {
@@ -181,7 +183,24 @@ void printFuncs() {
     }
     std::cout << ");\n\n";
   }
+
+  JsonStream js;
+  format(js, FuncDefs);
 }
+
+bool print_structs = false;
+bool print_functions = false;
+typedef std::map<std::string, std::function<void()>> CallbackMap;
+
+CallbackMap initArgumentActions() {
+  CallbackMap ArgumentActions;
+  ArgumentActions["structs"] = [](){ print_structs = true; };
+  ArgumentActions["functions"] = [](){ print_functions = true; };
+  ArgumentActions["help"] = [](){ std::cout << "[structs|functions|help]" << std::endl; };
+  return ArgumentActions;
+}
+
+CallbackMap ArgumentActions = initArgumentActions();
 
 class PrintFunctionNamesAction : public PluginASTAction {
 protected:
@@ -202,35 +221,20 @@ protected:
                  const std::vector<std::string>& args) {
 
     for (auto& arg : args) {
-      if (arg == "structs")
-        print_structs = true;
-      else if (arg == "functions")
-        print_functions = true;
-    }
-    
-    /*
-    for (unsigned i = 0, e = args.size(); i != e; ++i) {
-      llvm::errs() << "PrintFunctionNames arg = " << args[i] << "\n";
-
-      // Example error handling.
-      if (args[i] == "-an-error") {
+      auto action = ArgumentActions.find(arg);
+      if (action == ArgumentActions.end()) {
         DiagnosticsEngine &D = CI.getDiagnostics();
-        unsigned DiagID = D.getCustomDiagID(
-          DiagnosticsEngine::Error, "invalid argument '" + args[i] + "'");
+        unsigned DiagID = D.getCustomDiagID(DiagnosticsEngine::Error, "invalid argument '" + arg + "'");
         D.Report(DiagID);
         return false;
       }
+      else {
+        action->second();
+      }
     }
-    if (args.size() && args[0] == "help")
-      PrintHelp(llvm::errs());
-    */
 
     return true;
   }
-  void PrintHelp(llvm::raw_ostream& ros) {
-    ros << "Help for PrintFunctionNames plugin goes here\n";
-  }
-
 };
 
 }

@@ -1,5 +1,7 @@
 #include <string>
 #include <iostream>
+#include <sstream>
+#include <cstring>
 
 template <typename>
 struct Void {
@@ -64,6 +66,7 @@ has_typedef(value_type, value_type)
 template <typename T>
 struct has_key {
   typedef typename has_key_type<T>::type key_type;
+  typedef typename has_mapped_type<T>::type mapped_type;
   typedef typename has_value_type<T>::type value_type;
 
   const static bool value = (has_key_type<T>::value && string_type<key_type>::value && has_mapped_type<T>::value)
@@ -73,6 +76,7 @@ struct has_key {
 template <>
 struct has_key<void> {
   typedef void key_type;
+  typedef void mapped_type;
   typedef void value_type;
 
   const static bool value = false;
@@ -95,42 +99,39 @@ struct has_range {
 };
 
 template <typename T>
-auto getKey(const T& t) -> decltype(t.first) {
+auto getKey(T& t) -> decltype(t.first) {
   return t.first;
 }
 
 template <typename T>
-auto getKey(const T& t) -> decltype(t.key) {
+auto getKey(T& t) -> decltype(t.key) {
   return t.key;
 }
 
 template <typename T>
-auto getKey(const T& t) -> decltype(t.key()) {
+auto getKey(T& t) -> decltype(t.key()) {
   return t.key();
 }
 
 template <typename T>
-auto getValue(const T& t) -> decltype(t.second) {
+auto getValue(T& t) -> decltype(t.second) {
   return t.second;
 }
 
 template <typename T>
-auto getValue(const T& t) -> decltype(t.value) {
+auto getValue(T& t) -> decltype(t.value) {
   return t.value;
 }
 
 template <typename T>
-auto getValue(const T& t) -> decltype(t.value()) {
+auto getValue(T& t) -> decltype(t.value()) {
   return t.value();
 }
 
-struct JsonStream : public std::ostream {
-  template <typename T>
-  JsonStream& operator << (const T& obj) {
-    std::cout << obj;
-    return *this;
-  }
-};
+template <typename T, typename Stream>
+void format(Stream& out, T& obj) {
+  formatter<T, Stream>::format(out, obj);
+}
 
 template <typename T, typename Stream>
 void format(Stream& out, const T& obj) {
@@ -139,11 +140,9 @@ void format(Stream& out, const T& obj) {
 
 template <typename U>
 struct formatter<U, std::ostream> {
-  typedef std::ostream Stream;
-
-  template <typename T>
+  template <typename T, typename Stream>
   static auto format_impl(Stream& out, const T& t) -> typename std::enable_if<has_range<T>::value && not has_key<T>::value>::type {
-    std::string sep = "";
+    const char* sep = "";
     out << "<";
     for (const auto& itr : t) {
       out << sep;
@@ -153,9 +152,9 @@ struct formatter<U, std::ostream> {
     out << ">";
   }
 
-  template <typename T>
+  template <typename T, typename Stream>
   static auto format_impl(Stream& out, const T& t) -> typename std::enable_if<has_key<T>::value && !has_format_override<typename has_key<T>::value_type, Stream>::value>::type {
-    std::string sep = "";
+    const char* sep = "";
     out << "(";
     for (const auto& itr : t) {
       out << sep;
@@ -167,9 +166,9 @@ struct formatter<U, std::ostream> {
     out << ")";
   }
 
-  template <typename T>
+  template <typename T, typename Stream>
   static auto format_impl(Stream& out, const T& t) -> typename std::enable_if<has_key<T>::value && has_format_override<typename has_key<T>::value_type, Stream>::value>::type {
-    std::string sep = "";
+    const char* sep = "";
     out << "(";
     for (const auto& itr : t) {
       out << sep;
@@ -179,93 +178,19 @@ struct formatter<U, std::ostream> {
     out << ")";
   }
 
-  template <typename T>
+  template <typename T, typename Stream>
   static auto format_impl(Stream& out, const T& t) -> typename std::enable_if<!(has_range<T>::value || has_key<T>::value)>::type {
     out << t;
   }
 
-  template <typename T>
+  template <typename T, typename Stream>
   static auto format(Stream& out, const T& t) -> typename std::enable_if<has_format_override<T, Stream>::value>::type {
     format_override<T, Stream>::format(out, t);
   }
 
-  template <typename T>
+  template <typename T, typename Stream>
   static auto format(Stream& out, const T& t) -> typename std::enable_if<!has_format_override<T, Stream>::value>::type {
     format_impl(out, t);
-  }
-};
-
-template <typename U>
-struct formatter<U, JsonStream> {
-  typedef JsonStream Stream;
-
-  template <typename T>
-  static auto format_impl(Stream& out, const T& t) -> typename std::enable_if<has_range<T>::value && not has_key<T>::value>::type {
-    std::string sep = "";
-    out << "[";
-    for (const auto& itr : t) {
-      out << sep;
-      format(out, itr);
-      sep = ", ";
-    }
-    out << "]";
-  }
-
-  template <typename T>
-  static auto format_impl(Stream& out, const T& t) -> typename std::enable_if<has_key<T>::value && !has_format_override<typename has_key<T>::value_type, Stream>::value>::type {
-    std::string sep = "";
-    out << "{";
-    for (const auto& itr : t) {
-      out << sep;
-      format(out, getKey(itr));
-      out << " : ";
-      format(out, getValue(itr));
-      sep = ", ";
-    }
-    out << "}";
-  }
-
-  template <typename T>
-  static auto format_impl(Stream& out, const T& t) -> typename std::enable_if<has_key<T>::value && has_format_override<typename has_key<T>::value_type, Stream>::value>::type {
-    std::string sep = "";
-    out << "{";
-    for (const auto& itr : t) {
-      out << sep;
-      format(out, itr);
-      sep = ", ";
-    }
-    out << "}";
-  }
-
-  template <typename T>
-  static auto format_impl(Stream& out, const T& t) -> typename std::enable_if<!(has_range<T>::value || has_key<T>::value)>::type {
-    out << t;
-  }
-
-  template <typename T>
-  static auto format(Stream& out, const T& t) -> typename std::enable_if<has_format_override<T, Stream>::value>::type {
-    format_override<T, Stream>::format(out, t);
-  }
-
-  template <typename T>
-  static auto format(Stream& out, const T& t) -> typename std::enable_if<!has_format_override<T, Stream>::value>::type {
-    format_impl(out, t);
-  }
-};
-
-template <>
-struct format_override<std::string, JsonStream> {
-  static void format(JsonStream& out, const std::string& obj) {
-    out << "\"" << obj << "\"";
-  }
-};
-
-template <typename T1, typename T2>
-struct format_override<std::pair<T1, T2>, JsonStream> {
-  static void format(JsonStream& out, const std::pair<T1, T2>& obj) {
-    ::format(out, obj.first);
-    out << " : ";
-    ::format(out, obj.second);
   }
 };
 

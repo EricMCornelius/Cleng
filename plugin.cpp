@@ -9,7 +9,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/Lex/Preprocessor.h"
 
-#include "serializer.h"
+#include "json_serializer.h"
 
 #include <iostream>
 #include <map>
@@ -167,7 +167,7 @@ void printStructs() {
     std::cout << "};\n\n";
   }
 
-  JsonStream js;
+  JsonOutStream js;
   format(js, StructDefs);
 }
 
@@ -184,7 +184,7 @@ void printFuncs() {
     std::cout << ");\n\n";
   }
 
-  JsonStream js;
+  JsonOutStream js;
   format(js, FuncDefs);
 }
 

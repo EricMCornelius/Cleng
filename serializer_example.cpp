@@ -446,7 +446,6 @@ void test6() {
   obj["Hello"] = JsonString("World");
   obj["Goodbye"] = false;
   JsonArray arr = {1, "hi", "bye", true, false, {"hello", "world", 1, 2, 3}};
-  //JsonObject obj2 = {{"Hello", 1}, {"Goodbye", 2}, {"Test", JsonValue{JsonPair{"?", 2}}}};
   JsonObject obj2 = {{"Hello", 1}, {"Goodbye", 2}, {"Test", {JsonPair{"?", 2}}}};
   obj["Children"] = std::move(arr);
   obj["Sub-obj"] = std::move(obj2);
@@ -489,25 +488,6 @@ void test7() {
 }
 
 int main(int argc, char* argv[]) {
-  std::unordered_map<std::string, std::set<std::string>> contents;
-  std::vector<test> tests;
-
-  auto& vec = contents["test"];
-  vec.insert("one");
-  vec.insert("two");
-  vec.insert("three");
-
-  auto& vec2 = contents["test2"];
-  vec2.insert("four");
-  vec2.insert("five");
-  vec2.insert("six");
-
-  JsonOutStream ss;
-
-  tests.push_back({"First", "Up"});
-  tests.push_back({"Hello", "World"});
-  tests.push_back({"Goodbye", "World"});
-
   test1();
   test2();
   test3();
@@ -515,11 +495,4 @@ int main(int argc, char* argv[]) {
   test5();
   test6();
   test7();
-
-  /*
-  recursive s({1,2,3});
-  s.children.push_back(new recursive({4,5,6}));
-  format(ss, s);
-  std::cout << std::endl;
-  */
 }

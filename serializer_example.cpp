@@ -5,6 +5,7 @@
 #include <map>
 #include <unordered_map>
 #include <set>
+#include <memory>
 
 struct test {
   std::string _key;
@@ -165,12 +166,16 @@ struct format_override<JsonBool, JsonInStream> {
 };
 
 struct JsonValue {
-  union {
-  	JsonObject* object;
-  	JsonArray* array;
-  	JsonString* string;
-  	JsonNumber* number;
-  	JsonBool* boolean;
+  union value_type {
+    std::shared_ptr<JsonNull> null;
+  	std::shared_ptr<JsonObject> object;
+  	std::shared_ptr<JsonArray> array;
+  	std::shared_ptr<JsonString> string;
+  	std::shared_ptr<JsonNumber> number;
+  	std::shared_ptr<JsonBool> boolean;
+
+    value_type() : null(nullptr) { }
+    ~value_type() { }
   } ptr;
   
   enum TYPE : unsigned char {
@@ -182,97 +187,139 @@ struct JsonValue {
     NULL_
   } type;
 
+  operator JsonObject& () {
+    return *ptr.object;
+  }
+
+  operator JsonArray& () {
+    return *ptr.array;
+  }
+
+  operator JsonString& () {
+    return *ptr.string;
+  }
+
+  operator JsonNumber& () {
+    return *ptr.number;
+  }
+
+  operator JsonBool& () {
+    return *ptr.boolean;
+  }
+
   JsonValue()
     : type(NULL_) { }
 
   JsonValue(int i) {
-  	*this = new JsonNumber(i);
+    *this = static_cast<double>(i);
   }
 
   JsonValue(double d) {
-  	*this = new JsonNumber(d);
+  	*this = d;
   }
 
-  JsonValue(std::string str) {
-  	*this = new JsonString(std::move(str));
+  JsonValue(std::string&& str) {
+  	*this = str;
   }
 
   JsonValue(const char* str) {
-  	*this = new JsonString(str);
+  	*this = str;
   }
 
   JsonValue(bool b) {
-  	*this = new JsonBool(b);
+  	*this = b;
   }
 
   JsonValue(JsonArray arr) {
-  	*this = new JsonArray(std::move(arr));
+  	*this = arr;
+  }
+
+  JsonValue(JsonObject obj) {
+    *this = obj;
   }
 
   JsonValue(std::initializer_list<JsonValue> arr) {
-  	*this = new JsonArray(arr);
+  	*this = JsonArray(arr);
   }
 
   JsonValue(std::initializer_list<std::pair<const JsonString, JsonValue>> pairs) {
-  	*this = new JsonObject(pairs);
+  	*this = JsonObject(pairs);
   }
 
-  JsonValue& operator = (JsonObject* _ptr) {
-    ptr.object = _ptr;
-    type = OBJECT;
-    return *this;
+  JsonValue(const JsonValue& other) {
+    *this = other;
   }
 
-  JsonValue& operator = (JsonObject&& _val) {
-  	ptr.object = new JsonObject(std::move(_val));
+  JsonValue(JsonValue&& other) {
+    *this = other; 
+  }
+
+  ~JsonValue() {
+    cleanup();
+  }
+
+  void cleanup() {
+    switch (type) {
+      case OBJECT:
+        ptr.object = nullptr;
+        break;
+      case ARRAY:
+        ptr.array = nullptr;
+        break;
+      case STRING:
+        ptr.string = nullptr;
+        break;
+      case NUMBER:
+        ptr.number = nullptr;
+        break;
+      case BOOLEAN:
+        ptr.boolean = nullptr;
+        break;
+      default: {
+
+      }
+    }
+    type = NULL_;
+  }
+
+  JsonValue& operator = (JsonObject _val) {
+  	ptr.object = std::make_shared<JsonObject>(_val);
   	type = OBJECT;
   	return *this;
   }
 
-  JsonValue& operator = (JsonArray* _ptr) {
-  	ptr.array = _ptr;
+  JsonValue& operator = (JsonArray _val) {
+  	ptr.array = std::make_shared<JsonArray>(_val);
   	type = ARRAY;
   	return *this;
   }
 
-  JsonValue& operator = (JsonArray&& _val) {
-  	ptr.array = new JsonArray(_val);
-  	type = ARRAY;
-  	return *this;
+  JsonValue& operator = (JsonString _val) {
+    ptr.string = std::make_shared<JsonString>(_val);
+    type = STRING;
+    return *this;
   }
 
-  JsonValue& operator = (JsonString* _ptr) {
-  	ptr.string = _ptr;
-  	type = STRING;
-  	return *this;
-  }
-
-  JsonValue& operator = (const JsonString& val) {
-  	ptr.string = new JsonString(val);
-  	type = STRING;
-  	return *this;
+  JsonValue& operator = (const char* _str) {
+    ptr.string = std::make_shared<JsonString>(_str);
+    type = STRING;
+    return *this;
   }
  
-  JsonValue& operator = (JsonNumber* _ptr) {
-  	ptr.number = _ptr;
+  JsonValue& operator = (JsonNumber _val) {
+  	ptr.number = std::make_shared<JsonNumber>(_val);
   	type = NUMBER;
   	return *this;
   }
 
-  JsonValue& operator = (double _val) {
-    ptr.number = new JsonNumber(_val);
+  JsonValue& operator = (int _val) {
+    ptr.number = std::make_shared<JsonNumber>(_val);
     type = NUMBER;
     return *this;
   }
 
-  JsonValue& operator = (JsonBool* _ptr) {
-  	ptr.boolean = _ptr;
-  	type = BOOLEAN;
-  	return *this;
-  }
-
-  JsonValue& operator = (bool _val) {
-  	ptr.boolean = new bool(_val);
+  JsonValue& operator = (JsonBool _val) {
+  	ptr.boolean = std::make_shared<JsonBool>(_val);
   	type = BOOLEAN;
   	return *this;
   }
@@ -280,6 +327,35 @@ struct JsonValue {
   JsonValue& operator = (const JsonNull& _val) {
   	type = NULL_;
   	return *this;
+  }
+
+  JsonValue& operator = (const JsonValue& _val) {
+    if (this == &_val)
+      return *this;
+
+    cleanup();
+    type = _val.type;
+    switch (_val.type) {
+      case OBJECT:
+        ptr.object = _val.ptr.object;
+        break;
+      case ARRAY:
+        ptr.array = _val.ptr.array;
+        break;
+      case STRING:
+        ptr.string = _val.ptr.string;
+        break;
+      case NUMBER:
+        ptr.number = _val.ptr.number;
+        break;
+      case BOOLEAN:
+        ptr.boolean = _val.ptr.boolean;
+        break;
+      default: {
+
+      }
+    }
+    return *this;
   }
 };
 
@@ -443,15 +519,24 @@ void test5() {
 
 void test6() {
   JsonObject obj;
-  obj["Hello"] = JsonString("World");
-  obj["Goodbye"] = false;
+  obj["Hello"] = 0;
   JsonArray arr = {1, "hi", "bye", true, false, {"hello", "world", 1, 2, 3}};
-  JsonObject obj2 = {{"Hello", 1}, {"Goodbye", 2}, {"Test", {JsonPair{"?", 2}}}};
-  obj["Children"] = std::move(arr);
-  obj["Sub-obj"] = std::move(obj2);
+  JsonObject obj2 = {{"Hello", 1}, {"Goodbye", 2}, {"Test", JsonObject{{"?", 2}}}};
+  JsonValue val = JsonObject{{"Hello", "World"}};
+  obj["Children"] = arr;
+  obj["Sub-obj"] = obj2;
+  obj["test"] = obj["Children"];
+  static_cast<JsonArray&>(obj["test"])[0] = 2;
+  static_cast<JsonObject&>(obj["Sub-obj"])["Hello"] = 2;
+
+  // bind goodbye property to hello
+  obj["Goodbye"] = obj["Hello"];
+  obj["Hello"] = 1;
+  //static_cast<JsonNumber&>(obj["Hello"]) = 1;
 
   JsonOutStream ss;
   format(ss, obj);
+  std::cout << std::endl;
 }
 
 void test7() {

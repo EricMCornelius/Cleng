@@ -24,6 +24,14 @@ typedef std::vector<AV> AVV;
 typedef std::map<std::string, AVV> EAV;
 typedef std::map<std::string, PresumedLoc> LM;
 
+template <>
+struct format_override<AV, JsonOutStream> {
+  template <typename Stream>
+  static void format(Stream& out, const AV& obj) {
+    out << "\"" << obj.first << "\":" << obj.second;
+  }
+};
+
 namespace {
 
 EAV StructDefs;

@@ -91,7 +91,15 @@ struct JsonValue {
     return *ptr.object;
   }
 
+  operator const JsonObject& () const {
+    return *ptr.object;
+  }
+
   operator JsonArray& () {
+    return *ptr.array;
+  }
+
+  operator const JsonArray& () const {
     return *ptr.array;
   }
 
@@ -99,11 +107,23 @@ struct JsonValue {
     return *ptr.string;
   }
 
+  operator const JsonString& () const {
+    return *ptr.string;
+  }
+
   operator JsonNumber& () {
     return *ptr.number;
   }
 
+  operator const JsonNumber& () const {
+    return *ptr.number;
+  }
+
   operator JsonBool& () {
+    return *ptr.boolean;
+  }
+
+  operator const JsonBool& () const {
     return *ptr.boolean;
   }
 

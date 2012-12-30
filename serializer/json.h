@@ -30,7 +30,7 @@ JsonInStream& operator >> (JsonInStream& in, T& obj) {
 JsonInStream& operator >> (JsonInStream& in, std::string& obj) {
   char c;
   bool escape = false;
-  while(in.buffer >> c) {
+  while(in.buffer >> std::noskipws >> c) {
     if (!escape && c == '"') {
       in.buffer.putback(c);
       break;

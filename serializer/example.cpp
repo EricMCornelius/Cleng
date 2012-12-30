@@ -1,11 +1,13 @@
-#include "json_serializer.h"
-
+#include <serializer/json.h>
+#include <serializer/json/impl.h>
+/*
 #include <vector>
 #include <list>
 #include <map>
 #include <unordered_map>
 #include <set>
 #include <memory>
+*/
 
 struct test {
   std::string _key;
@@ -109,6 +111,7 @@ struct format_override<recursive*, JsonInStream> {
   }
 };
 
+/*
 struct JsonValue;
 typedef std::string JsonString;
 typedef std::unordered_map<JsonString, JsonValue> JsonObject;
@@ -442,6 +445,7 @@ struct format_override<JsonValue, JsonInStream> {
     }
   }
 };
+*/
 
 void test1() {
   constexpr auto text = R"({"First":["hello","world","goodbye"],"Second":["Meh"]})";
@@ -563,10 +567,11 @@ void test7() {
         }
     }
 })";
-	JsonInStream ssi(text);
-	JsonObject fill;
-	format(ssi, fill);
-
+	
+  JsonInStream ssi(text);
+  JsonObject fill;
+  format(ssi, fill);
+  
 	JsonOutStream ss;
 	format(ss, fill);
 	std::cout << std::endl;

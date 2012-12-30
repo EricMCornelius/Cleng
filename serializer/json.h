@@ -1,4 +1,6 @@
-#include "serializer.h"
+#pragma once
+
+#include <serializer/core.h>
 #include <iterator>
 
 struct JsonOutStream {

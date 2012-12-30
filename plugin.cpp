@@ -9,7 +9,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/Lex/Preprocessor.h"
 
-#include "json_serializer.h"
+#include "serializer/json.h"
 
 #include <iostream>
 #include <map>

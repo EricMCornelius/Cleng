@@ -9,7 +9,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/Lex/Preprocessor.h"
 
-#include "serializer/json.h"
+#include <serializer/json/json.h>
 
 #include <iostream>
 #include <map>
@@ -223,6 +223,7 @@ protected:
       printStructs();
     if (print_functions)
       printFuncs();
+    std::cout << "\n" << std::endl;
   }
 
   bool ParseArgs(const CompilerInstance &CI,
@@ -233,6 +234,12 @@ protected:
       if (action == ArgumentActions.end()) {
         DiagnosticsEngine &D = CI.getDiagnostics();
         unsigned DiagID = D.getCustomDiagID(DiagnosticsEngine::Error, "invalid argument '" + arg + "'");
+        D.Report(DiagID);
+
+        std::string opts;
+        for (auto& action : ArgumentActions)
+          opts += action.first + " ";
+        DiagID = D.getCustomDiagID(DiagnosticsEngine::Error, "Allowed options: " + opts);
         D.Report(DiagID);
         return false;
       }

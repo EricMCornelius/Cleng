@@ -1,0 +1,9 @@
+register({
+  id: 'clang',
+  type: 'external',
+  language: 'c++',
+  includedirs: ['/usr/local/include'],
+  libdirs: ['/usr/local/lib'],
+  libs: ['LLVMSupport', 'clangAST']
+//  libs: ['clang', 'LLVMSupport']
+});

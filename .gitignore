@@ -2,3 +2,5 @@
 *.so
 *.o
 *.tsk
+
+.posh

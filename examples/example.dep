@@ -1,0 +1,7 @@
+register({
+  id: 'RunExample1',
+  type: 'command',
+  commands: [
+    {cmd: './run.js test2.cpp functions', action: 'run', cwd: env.base, sources: '../lib/libClengPlugin.so'}
+  ]
+});

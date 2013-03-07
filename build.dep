@@ -1,0 +1,7 @@
+register({
+  id: 'ClengPlugin',
+  language: 'c++',
+  type: 'shared_lib',
+  compiler: 'clang++',
+  deps: ['clang', 'SerializerCore']
+});

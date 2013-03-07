@@ -1,0 +1,9 @@
+register({
+  id: 'Serializer',
+  type: 'scm',
+  git: {
+    repo: 'git@github.com:EricMCornelius/Serializer.git',
+    branch: 'master',
+    target: 'serializer'
+  }
+});

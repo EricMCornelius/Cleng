@@ -1,0 +1,2 @@
+global.env.defines = ['__STDC_CONSTANT_MACROS', '__STDC_FORMAT_MACROS', '__STDC_LIMIT_MACROS'];
+global.env.compiler_flags = ['-std=c++11', '-fno-rtti'];

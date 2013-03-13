@@ -40,6 +40,9 @@ LM StructLocs;
 EAV FuncDefs;
 LM FuncLocs;
 
+EAV FunctionTypedefs;
+AVV SimpleTypedefs;
+
 EAV GlobalDefs;
 LM GlobalLocs;
 
@@ -52,6 +55,7 @@ public:
 
   std::string currentRecord;
   std::string currentFunc;
+  std::string currentTypedef;
 
   template <typename Type>
   PresumedLoc getLocation(Type* t) {
@@ -85,7 +89,11 @@ public:
     auto name = decl->getNameInfo().getName().getAsString();
     auto type = decl->getResultType();
     auto typeName = type.getAsString();
-    //std::cout << name << " : " << typeName << std::endl;
+
+    if (FuncDefs.find(name) != FuncDefs.end())
+      return false;
+
+    inFunction = true;
     currentFunc = name;
     FuncDefs[currentFunc].push_back(std::make_pair("Return", typeName));
     FuncLocs[name] = getLocation(decl);
@@ -93,8 +101,9 @@ public:
   }
 
   bool TraverseFunctionDecl(FunctionDecl *decl) {
-    return decl->isThisDeclarationADefinition() ?
-      Default::TraverseFunctionDecl(decl) : true;
+    return Default::TraverseFunctionDecl(decl);
+    //return decl->isThisDeclarationADefinition() ?
+    //  Default::TraverseFunctionDecl(decl) : true;
   }
 
   bool VisitParmVarDecl(ParmVarDecl *decl) {
@@ -102,11 +111,30 @@ public:
     auto type = decl->getOriginalType();
     auto typeName = type.getAsString();
     //std::cout << "  " << name << " : " << typeName << std::endl;
-    FuncDefs[currentFunc].push_back(std::make_pair(name, typeName));
+    if (inFunction)
+      FuncDefs[currentFunc].push_back(std::make_pair(name, typeName));
+    else
+      FunctionTypedefs[currentTypedef].push_back(std::make_pair(name, typeName));
+    return true;
+  }
+
+  bool VisitTypedefDecl(TypedefDecl *decl) {
+    inFunction = false;
+    auto name = decl->getNameAsString();
+    currentTypedef = name;
+    auto type = decl->getUnderlyingType();
+    if (type->isFunctionPointerType()) {
+      auto ftype = type->getAs<PointerType>()->getPointeeType()->getAs<FunctionType>();
+      FunctionTypedefs[currentTypedef].push_back(std::make_pair("Return", ftype->getResultType().getAsString()));
+    }
+    else {
+      SimpleTypedefs.push_back(std::make_pair(name, type.getAsString()));
+    }
     return true;
   }
 
 private:
+  bool inFunction = false;
   ASTContext& Context;
 };
 
@@ -163,52 +191,109 @@ private:
   Preprocessor& _processor;
 };
 
-//typedef std::map<std::string, std::vector<std::pair<std::string, std::string>>> EAV;
-
-void printStructs() {
-  for (auto& record : StructDefs) {
-    //std::cout << StructLocs[record.first].getFilename() << std::endl;
-    std::cout << "struct " << record.first << " { \n";
-    for (auto& field : record.second) {
-      std::cout << "  " << field.second << " " << field.first << ";" << std::endl;
-    }
-    std::cout << "};\n\n";
-  }
-
-  JsonOutStream js;
-  format(js, StructDefs);
-}
-
-void printFuncs() {
-  for (auto& func : FuncDefs) {
-    std::cout << func.second[0].second << " " << func.first << "(";
-    bool first = true;
-    std::string sep = "";
-    for (auto& param : func.second) {
-      if (first) { first = false; continue; }
-      std::cout << sep << param.second << " " << param.first;
-      sep = ", ";
-    }
-    std::cout << ");\n\n";
-  }
-
-  JsonOutStream js;
-  format(js, FuncDefs);
-}
 
 bool print_structs = false;
 bool print_functions = false;
+bool print_macros = false;
+bool print_typedefs = false;
+bool print_json = false;
+bool print_text = false;
 typedef std::map<std::string, std::function<void()>> CallbackMap;
 
 CallbackMap initArgumentActions() {
   CallbackMap ArgumentActions;
   ArgumentActions["structs"] = [](){ print_structs = true; };
   ArgumentActions["functions"] = [](){ print_functions = true; };
+  ArgumentActions["macros"] = [](){ print_macros = true; };
+  ArgumentActions["typedefs"] = [](){ print_typedefs = true; };
+  ArgumentActions["json"] = [](){ print_json = true; };
+  ArgumentActions["text"] = [](){ print_text = true; };
+  ArgumentActions["default"] = [](){};
   ArgumentActions["help"] = [](){ std::cout << "[structs|functions|help]" << std::endl; };
   return ArgumentActions;
 }
 
 CallbackMap ArgumentActions = initArgumentActions();
+
+void printStructs() {
+  if (print_text) {
+    for (auto& record : StructDefs) {
+      //std::cout << StructLocs[record.first].getFilename() << std::endl;
+      std::cout << "struct " << record.first << " { \n";
+      for (auto& field : record.second) {
+        std::cout << "  " << field.second << " " << field.first << ";" << std::endl;
+      }
+      std::cout << "};\n\n";
+    }
+  }
+
+  if (print_json) {
+    JsonOutStream js;
+    format(js, StructDefs);
+  }
+}
+
+void printFuncs() {
+  if (print_text) {
+    for (auto& func : FuncDefs) {
+      std::cout << func.second[0].second << " " << func.first << "(";
+      bool first = true;
+      std::string sep = "";
+      for (auto& param : func.second) {
+        if (first) { first = false; continue; }
+        std::cout << sep << param.second << " " << param.first;
+        sep = ", ";
+      }
+      std::cout << ");\n\n";
+    }
+  }
+
+  if (print_json) {
+    JsonOutStream js;
+    format(js, FuncDefs);
+  }
+}
+
+void printTypedefs() {
+  if (print_text) {
+    for (auto& td : FunctionTypedefs) {
+      std::cout << td.second[0].second << " " << td.first << "(";
+      bool first = true;
+      std::string sep = "";
+      for (auto& param : td.second) {
+        if (first) { first = false; continue; }
+        std::cout << sep << param.second << " " << param.first;
+        sep = ", ";
+      }
+      std::cout << ");\n\n";
+    }
+
+    for (auto& td : SimpleTypedefs) {
+      std::cout << td.first << " -> " << td.second << std::endl;
+    }
+  }
+
+  if (print_json) {
+    JsonOutStream js;
+    format(js, FunctionTypedefs);
+    format(js, SimpleTypedefs);
+  }
+}
+
+void printMacros() {
+  if (print_text) {
+    for (auto& macro : GlobalDefs) {
+      auto type = macro.second[0].second;
+      if (type == "numeric_constant" || type == "string_literal")
+        std::cout << "define " << macro.first << ": " << macro.second[0].first << std::endl;
+    }
+  }
+
+  if (print_json) {
+    JsonOutStream js;
+    format(js, GlobalDefs);
+  }
+}
 
 class PrintFunctionNamesAction : public PluginASTAction {
 protected:
@@ -223,6 +308,10 @@ protected:
       printStructs();
     if (print_functions)
       printFuncs();
+    if (print_macros)
+      printMacros();
+    if (print_typedefs)
+      printTypedefs();
     std::cout << "\n" << std::endl;
   }
 

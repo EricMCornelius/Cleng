@@ -3,5 +3,13 @@ register({
   language: 'c++',
   type: 'shared_lib',
   compiler: 'clang++',
-  deps: ['clang', 'SerializerCore']
+  compiler_flags: env.compiler_flags.concat(['-fno-rtti']),
+  deps: ['clang', 'SerializerCore', 'serializer']
+});
+
+register({
+  id: 'cleng',
+  language: 'c++',
+  type: 'external',
+  includedirs: ['include']
 });

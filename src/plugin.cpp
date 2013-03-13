@@ -10,25 +10,28 @@
 #include "clang/Lex/Preprocessor.h"
 
 #include <serializer/json/json.h>
+#include <serializer/string_escaper.h>
 
 #include <iostream>
 #include <map>
 #include <string>
 #include <vector>
 #include <sstream>
+#include <fstream>
 
 using namespace clang;
 
 typedef std::pair<std::string, std::string> AV;
 typedef std::vector<AV> AVV;
 typedef std::map<std::string, AVV> EAV;
+typedef std::map<std::string, std::string> EV;
 typedef std::map<std::string, PresumedLoc> LM;
 
 template <>
 struct format_override<AV, JsonOutStream> {
   template <typename Stream>
   static void format(Stream& out, const AV& obj) {
-    out << "\"" << obj.first << "\":" << obj.second;
+    out << "{\"" << obj.first << "\":" << "\"" << escape_string(obj.second) << "\"}";
   }
 };
 
@@ -41,7 +44,7 @@ EAV FuncDefs;
 LM FuncLocs;
 
 EAV FunctionTypedefs;
-AVV SimpleTypedefs;
+EV SimpleTypedefs;
 
 EAV GlobalDefs;
 LM GlobalLocs;
@@ -95,7 +98,7 @@ public:
 
     inFunction = true;
     currentFunc = name;
-    FuncDefs[currentFunc].push_back(std::make_pair("Return", typeName));
+    FuncDefs[currentFunc].push_back(std::make_pair("return", typeName));
     FuncLocs[name] = getLocation(decl);
     return true;
   }
@@ -125,10 +128,10 @@ public:
     auto type = decl->getUnderlyingType();
     if (type->isFunctionPointerType()) {
       auto ftype = type->getAs<PointerType>()->getPointeeType()->getAs<FunctionType>();
-      FunctionTypedefs[currentTypedef].push_back(std::make_pair("Return", ftype->getResultType().getAsString()));
+      FunctionTypedefs[currentTypedef].push_back(std::make_pair("return", ftype->getResultType().getAsString()));
     }
     else {
-      SimpleTypedefs.push_back(std::make_pair(name, type.getAsString()));
+      SimpleTypedefs[name] = type.getAsString();
     }
     return true;
   }
@@ -171,10 +174,10 @@ public:
     if (info->getNumTokens() > 0) {
       if (info->isObjectLike()) {
         auto kind = info->getReplacementToken(0).getKind();
-        GlobalDefs[name].push_back(std::make_pair(cat.str(), getTokenName(kind)));
+        GlobalDefs[name].push_back(std::make_pair(getTokenName(kind), cat.str()));
       }
       else if (info->isFunctionLike()) {
-        GlobalDefs[name].push_back(std::make_pair(cat.str(), "mixin"));
+        GlobalDefs[name].push_back(std::make_pair("mixin", cat.str()));
       }
     }
   }
@@ -196,6 +199,7 @@ bool print_structs = false;
 bool print_functions = false;
 bool print_macros = false;
 bool print_typedefs = false;
+bool print_all = false;
 bool print_json = false;
 bool print_text = false;
 typedef std::map<std::string, std::function<void()>> CallbackMap;
@@ -206,6 +210,7 @@ CallbackMap initArgumentActions() {
   ArgumentActions["functions"] = [](){ print_functions = true; };
   ArgumentActions["macros"] = [](){ print_macros = true; };
   ArgumentActions["typedefs"] = [](){ print_typedefs = true; };
+  ArgumentActions["all"] = [](){ print_all = true; };
   ArgumentActions["json"] = [](){ print_json = true; };
   ArgumentActions["text"] = [](){ print_text = true; };
   ArgumentActions["default"] = [](){};
@@ -228,7 +233,8 @@ void printStructs() {
   }
 
   if (print_json) {
-    JsonOutStream js;
+    std::ofstream structs_file("structs.json");
+    JsonOutStream js(structs_file);
     format(js, StructDefs);
   }
 }
@@ -249,7 +255,8 @@ void printFuncs() {
   }
 
   if (print_json) {
-    JsonOutStream js;
+    std::ofstream functions_file("functions.json");
+    JsonOutStream js(functions_file);
     format(js, FuncDefs);
   }
 }
@@ -274,23 +281,28 @@ void printTypedefs() {
   }
 
   if (print_json) {
-    JsonOutStream js;
-    format(js, FunctionTypedefs);
+    std::ofstream typedefs_file("typedefs.json");
+    JsonOutStream js(typedefs_file);
+    typedefs_file << "{\"simple\":";
     format(js, SimpleTypedefs);
+    typedefs_file << ",\"complex\":";
+    format(js, FunctionTypedefs);
+    typedefs_file << "}";
   }
 }
 
 void printMacros() {
   if (print_text) {
     for (auto& macro : GlobalDefs) {
-      auto type = macro.second[0].second;
+      auto type = macro.second[0].first;
       if (type == "numeric_constant" || type == "string_literal")
         std::cout << "define " << macro.first << ": " << macro.second[0].first << std::endl;
     }
   }
 
   if (print_json) {
-    JsonOutStream js;
+    std::ofstream macros_file("macros.json");
+    JsonOutStream js(macros_file);
     format(js, GlobalDefs);
   }
 }
@@ -304,13 +316,13 @@ protected:
   virtual void ExecuteAction() {
     getCompilerInstance().getPreprocessor().addPPCallbacks(new PreprocessorCallbacks(getCompilerInstance().getPreprocessor()));
     PluginASTAction::ExecuteAction();
-    if (print_structs)
+    if (print_structs || print_all)
       printStructs();
-    if (print_functions)
+    if (print_functions || print_all)
       printFuncs();
-    if (print_macros)
+    if (print_macros || print_all)
       printMacros();
-    if (print_typedefs)
+    if (print_typedefs || print_all)
       printTypedefs();
     std::cout << "\n" << std::endl;
   }

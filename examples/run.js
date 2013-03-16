@@ -11,4 +11,6 @@ cmd += ' ' + process.argv.slice(4).join(' ');
 
 var sep = cmd.split(' ');
 
+console.log(sep.join(' '));
+
 child_process.spawn(sep.shift(), sep, { stdio: 'inherit' });

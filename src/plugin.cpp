@@ -1,16 +1,4 @@
-#include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Frontend/FrontendPluginRegistry.h"
-#include "clang/AST/ASTConsumer.h"
-#include "clang/AST/AST.h"
-#include "clang/Frontend/CompilerInstance.h"
-#include "clang/Lex/Token.h"
-#include "clang/Lex/MacroInfo.h"
-#include "clang/Lex/PPCallbacks.h"
-#include "clang/AST/ASTContext.h"
-#include "clang/Lex/Preprocessor.h"
-
-#include <serializer/json/json.h>
-#include <serializer/string_escaper.h>
+#include "serialization.hpp"
 
 #include <iostream>
 #include <map>
@@ -20,20 +8,6 @@
 #include <fstream>
 
 using namespace clang;
-
-typedef std::pair<std::string, std::string> AV;
-typedef std::vector<AV> AVV;
-typedef std::map<std::string, AVV> EAV;
-typedef std::map<std::string, std::string> EV;
-typedef std::map<std::string, PresumedLoc> LM;
-
-template <>
-struct format_override<AV, JsonOutStream> {
-  template <typename Stream>
-  static void format(Stream& out, const AV& obj) {
-    out << "{\"" << obj.first << "\":" << "\"" << escape_string(obj.second) << "\"}";
-  }
-};
 
 namespace {
 
@@ -143,15 +117,36 @@ private:
 
 class PrintFunctionsConsumer : public ASTConsumer {
 public:
-  explicit PrintFunctionsConsumer(ASTContext& Context)
-    : Visitor(Context) { }
+  explicit PrintFunctionsConsumer(ASTContext& context) : _context(context) { }
 
   virtual void HandleTranslationUnit(clang::ASTContext &Context) {
+    /*
     Visitor.TraverseDecl(Context.getTranslationUnitDecl());
+    std::ofstream ast_file("ast.json");
+    JsonOutStream js(ast_file);
+    format(js, Context.getTranslationUnitDecl());
+    //for (auto& typeItr : Context.getTypes())
+    //  format(js, *typeItr);
+    */
+  }
+
+  virtual bool HandleTopLevelDecl(DeclGroupRef g) {
+    //JsonArray arr;
+    //Context.getSourceManager().getPresumedLoc(t->getLocation());
+    for (auto& decl : g) {
+      JsonObject obj;
+      visit(obj, decl, _context);
+      _arr.push_back(obj);
+    }
+    std::ofstream file("output.json");
+    JsonOutStream out(file);
+    format(out, _arr);
+    return true;
   }
 
 private:
-  PrintFunctionsVisitor Visitor;
+  ASTContext& _context;
+  JsonArray _arr;
 };
 
 class PreprocessorCallbacks : public PPCallbacks {

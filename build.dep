@@ -3,7 +3,7 @@ register({
   language: 'c++',
   type: 'shared_lib',
   compiler: 'clang++',
-  compiler_flags: env.compiler_flags.concat(['-fno-rtti']),
+  compiler_flags: env.compiler_flags.concat(['-fno-rtti', '-O2']),
   deps: ['clang', 'SerializerCore', 'serializer']
 });
 

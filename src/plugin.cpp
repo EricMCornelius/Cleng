@@ -25,7 +25,7 @@ public:
   virtual bool HandleTopLevelDecl(DeclGroupRef g) {
     for (auto& decl : g) {
       JsonObject obj;
-      visit(obj, decl, _context);
+      dispatch_decl(obj, *decl, _context);
       _output.emplace_back(obj);
     }
 

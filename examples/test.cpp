@@ -1,65 +1,27 @@
-#include "gl3.h"
-
-#include <string>
-#include <utility>
-
-int f(int x) { return 0; }
-
-class Inner {
-  double z;
-};
-
-class HelloWorld {
-  int x;
-  float y;
-  Inner i;
-
-  void empty_return() { }
-};
-
-int y;
-
-namespace {
-  int x1;
-  int x2;
+double test(double x, double y) {
+  auto z = x * x + y * y;
+  return z;
 }
 
-namespace test {
-  int y;
-}
-
-namespace test2 {
-  namespace test3 {
-    int z;
-
-    int doit() { return 0; };
-    int dontdoit();
-  }
-}
-
-enum hello {
-  there,
-  world,
-  loser
+template <typename type>
+struct point {
+  type x;
+  type y;
+  type z;
 };
 
-enum class hello2 : unsigned int {
-  there,
-  world,
-  loser
+typedef point<double> pointd;
+
+template <typename type>
+struct vector {
+  point<type> s;
+  point<type> e;
 };
 
-void print() { }
+typedef vector<double> vectord;
 
-template <typename Head, typename... Args>
-void print(Head&& head, Args&&... args) { 
-  print(head);
-  print(std::forward<Args>(args)...);
-}
-
-constexpr int doubledown(int x) { return 1; }
+struct inherited : public vectord { };
 
 int main(int argc, char* argv[]) {
-  std::string meh;
-  print(1, 2, 3, 4, "Five", "Six", "Seven", "Eight");
+  vector<int> test_vec;
 }

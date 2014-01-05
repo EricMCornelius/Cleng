@@ -1,3 +1,5 @@
 global.env.defines = ['__STDC_CONSTANT_MACROS', '__STDC_FORMAT_MACROS', '__STDC_LIMIT_MACROS'];
 global.env.compiler = 'clang++';
 global.env.compiler_flags = ['-std=c++11'];
+global.env.includedirs = ['/usr/lib/llvm-3.4/include'];
+global.env.libdirs = ['/usr/lib/llvm-3.4/lib'];

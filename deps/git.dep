@@ -7,3 +7,13 @@ register({
     target: 'serializer'
   }
 });
+
+register({
+  id: 'UberTest',
+  type: 'scm',
+  git: {
+    repo: 'git@github.com:EricMCornelius/UberTest.git',
+    branch: 'master',
+    target: 'uber_test'
+  }
+});

@@ -16,7 +16,7 @@ namespace {
 
 class JsonASTPrinter : public ASTConsumer {
 public:
-  explicit JsonASTPrinter(ASTContext& context, JsonArray& output) : _context(context), _output(output) { }
+  explicit JsonASTPrinter(ASTContext& context, json::Array& output) : _context(context), _output(output) { }
 
   virtual void HandleTranslationUnit(clang::ASTContext& context) {
     //Context.getTranslationUnitDecl();
@@ -24,7 +24,7 @@ public:
 
   virtual bool HandleTopLevelDecl(DeclGroupRef g) {
     for (auto& decl : g) {
-      JsonObject obj;
+      json::Object obj;
       dispatch_decl(obj, *decl, _context);
       _output.emplace_back(obj);
     }
@@ -34,15 +34,15 @@ public:
 
 private:
   ASTContext& _context;
-  JsonArray& _output;
+  json::Array& _output;
 };
 
 class PreprocessorCallbacks : public PPCallbacks {
 public:
-  PreprocessorCallbacks(Preprocessor& processor, JsonArray& output) : _processor(processor), _output(output) { }
+  PreprocessorCallbacks(Preprocessor& processor, json::Array& output) : _processor(processor), _output(output) { }
 
   virtual void MacroDefined(const Token& identifier, const MacroInfo* info) {
-    JsonObject obj;
+    json::Object obj;
     visit(obj, identifier, _processor);
     visit(obj, *info, _processor);
     _output.emplace_back(obj);
@@ -58,7 +58,7 @@ public:
 
 private:
   Preprocessor& _processor;
-  JsonArray& _output;
+  json::Array& _output;
 };
 
 typedef std::map<std::string, std::function<void()>> CallbackMap;
@@ -86,7 +86,7 @@ protected:
     PluginASTAction::ExecuteAction();
 
     std::ofstream output("output.json");
-    JsonOutStream out(output);
+    json::OutStream out(output);
     format(out, _output);
 
   }
@@ -116,7 +116,7 @@ protected:
     return true;
   }
 
-  JsonArray _output;
+  json::Array _output;
 };
 
 }

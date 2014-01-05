@@ -2,6 +2,6 @@ register({
   id: 'RunExample1',
   type: 'command',
   commands: [
-    {cmd: './run.js test2.cpp functions', action: 'run', sources: '../lib/libClengPlugin.so'}
+    {cmd: './run.js test2.cpp functions', action: 'run', sources: ['../lib/libClengPlugin.so']}
   ]
 });

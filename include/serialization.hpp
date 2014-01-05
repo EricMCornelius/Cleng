@@ -637,6 +637,10 @@ DEFAULT_VISIT_SPEC(clang::StaticAssertDecl);
 
 DEFAULT_VISIT_SPEC(clang::TranslationUnitDecl);
 
+VISIT_SPEC(clang::MacroDirective,
+  ::visit(obj, *decl.getMacroInfo(), ctx);
+);
+
 VISIT_SPEC(clang::MacroInfo,
   obj["node_type"] = "Macro";
 

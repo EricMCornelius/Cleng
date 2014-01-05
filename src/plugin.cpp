@@ -41,7 +41,7 @@ class PreprocessorCallbacks : public PPCallbacks {
 public:
   PreprocessorCallbacks(Preprocessor& processor, json::Array& output) : _processor(processor), _output(output) { }
 
-  virtual void MacroDefined(const Token& identifier, const MacroInfo* info) {
+  virtual void MacroDefined(const Token& identifier, const MacroDirective* info) {
     json::Object obj;
     visit(obj, identifier, _processor);
     visit(obj, *info, _processor);

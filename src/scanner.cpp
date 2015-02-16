@@ -123,16 +123,18 @@ json::Value type(CXType type) {
   json::Object result;
   if (isConst) {
     result["const"] = isConst;
-    type = clang_getCursorType(clang_getTypeDeclaration(type));
   }
   result["kind"] = type.kind;
 
   switch(type.kind) {
-    case CXTypeKind::CXType_Typedef:
+    case CXTypeKind::CXType_Typedef: {
       result["typedef"] = true;
       result["name"] = ::spelling(type).asString();
-      result["type"] = ::type(canonical(type));
+      auto cursor = clang_getTypeDeclaration(type);
+      type = clang_getTypedefDeclUnderlyingType(cursor);
+      result["type"] = ::type(type);
       return result;
+    }
     case CXTypeKind::CXType_Pointer:
       result["pointer"] = true;
       result["type"] = ::type(clang_getPointeeType(type));
@@ -158,7 +160,7 @@ json::Value type(CXType type) {
   }
 
   if (isConst) {
-    //type = clang_getCursorType(clang_getTypeDeclaration(type));
+    type = clang_getCursorType(clang_getTypeDeclaration(type));
     result["type"] = ::type(type);
     return result;
   }
@@ -204,7 +206,7 @@ struct Handler<CXCursorKind::CXCursor_FunctionDecl> {
     functions.emplace_back(json::Object{
       {"name", ::name(cursor).asString()},
       {"full", ::fullname(cursor).asString()},
-      {"type", ::type(cursor)},
+      {"signature", ::type(cursor)},
       {"result", ::type(::result(cursor))},
       {"args", args}
     });

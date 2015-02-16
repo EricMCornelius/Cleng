@@ -2,7 +2,7 @@ register({
   id: 'ClengPlugin',
   language: 'c++',
   type: 'shared_lib',
-  compiler: 'clang++',
+  sources: ['src/plugin.cpp'],
   compiler_flags: env.compiler_flags.concat(['-fno-rtti', '-O2']),
   deps: ['clang', 'SerializerCore', 'serializer']
 });
@@ -12,4 +12,21 @@ register({
   language: 'c++',
   type: 'external',
   includedirs: ['include']
+});
+
+register({
+  id: 'scanner',
+  language: 'c++',
+  type: 'application',
+  sources: ['src/scanner.cpp'],
+  deps: ['clang-c', 'SerializerCore', 'serializer']
+});
+
+register({
+  id: 'clang-c',
+  language: 'c++',
+  type: 'external',
+  includedirs: ['/usr/lib/llvm-3.5/include'],
+  libdirs: [],
+  libs: ['clang']
 });

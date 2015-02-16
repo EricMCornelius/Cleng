@@ -1,5 +1,7 @@
 #include <stdio.h>
 
+namespace test {
+
 struct test_struct;
 
 typedef int TestType;
@@ -16,8 +18,8 @@ struct test_struct {
 };
 
 struct {
-	int x;
-	int y;
+  int x;
+  int y;
 } z;
 
 struct test_second_struct {
@@ -27,14 +29,20 @@ struct test_second_struct {
   const struct test_struct* f;
 };
 
-int test(const TestType* x, double y) { 
+int test(const TestType* x, double y) {
   return 0;
+}
+
+}
+
+int test2(test::TestType* const * const & x, const test::TestType& y) {
+  return 1;
 }
 
 int main(int argc, char* argv[]) {
   const int x = 0;
   double y;
-  test(&x, y);
+  test::test(&x, y);
 }
 
 struct test_struct;

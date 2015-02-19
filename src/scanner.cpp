@@ -160,8 +160,19 @@ json::Value type(CXType type) {
   }
 
   if (isConst) {
-    type = clang_getCursorType(clang_getTypeDeclaration(type));
-    result["type"] = ::type(type);
+    auto nonconst_type = clang_getCursorType(clang_getTypeDeclaration(type));
+    if (nonconst_type.kind == CXTypeKind::CXType_Invalid || nonconst_type.kind == CXTypeKind::CXType_Unexposed) {
+      auto res = ::spelling(type).asString();
+      if (res.size() > 6 && res.substr(0, 5) == "const") {
+        result["type"] = res.substr(6);
+      }
+      else {
+        result["type"] = ::spelling(type).asString();
+      }
+    }
+    else {
+      result["type"] = ::type(nonconst_type);
+    }
     return result;
   }
   result["type"] = ::spelling(type).asString();

@@ -125,14 +125,19 @@ StringHandle spelling(CXCursor cursor) {
 }
 
 json::Value type(CXType type) {
+  //std::cout << spelling(type) << " " << canonical(type).kind << " " << type.kind << std::endl;
   bool isConst = clang_isConstQualifiedType(type);
   json::Object result;
   if (isConst) {
     result["const"] = isConst;
   }
+  if (type.kind == CXType_Unexposed) {
+    type = canonical(type);
+  }
+
   result["kind"] = type.kind;
 
-  switch(type.kind) {
+  switch (type.kind) {
     case CXTypeKind::CXType_Typedef: {
       result["typedef"] = true;
       result["name"] = ::spelling(type).asString();
@@ -181,7 +186,27 @@ json::Value type(CXType type) {
     }
     return result;
   }
-  result["type"] = ::spelling(type).asString();
+
+  auto type_str = ::spelling(type).asString();
+  switch (type.kind) {
+    case CXTypeKind::CXType_Record:
+      if (type_str.size() > 7 && type_str.substr(0, 6) == "struct") {
+        type_str = type_str.substr(7);
+      }
+      if (type_str.size() > 6 && type_str.substr(0, 5) == "class") {
+        type_str = type_str.substr(6);
+      }
+      break;
+    case CXTypeKind::CXType_Enum:
+      if (type_str.size() > 5 && type_str.substr(0, 4) == "enum") {
+        type_str = type_str.substr(5);
+      }
+      break;
+    default: {
+
+    }
+  }
+  result["type"] = type_str;
   return result;
 }
 

@@ -12,6 +12,8 @@
 json::Value results;
 json::Array functions;
 json::Array macros;
+json::Array enums;
+std::shared_ptr<json::Value> current_enum;
 
 struct StringHandle {
   StringHandle(CXString str) : data(str) {}
@@ -106,6 +108,10 @@ CXType underlying(CXCursor decl) {
   return clang_getTypedefDeclUnderlyingType(decl);
 }
 
+CXCursor declaration(CXType type) {
+  return clang_getTypeDeclaration(type);
+}
+
 StringHandle spelling(CXType type) {
   return clang_getTypeSpelling(type);
 }
@@ -131,7 +137,7 @@ json::Value type(CXType type) {
       result["typedef"] = true;
       result["name"] = ::spelling(type).asString();
       auto cursor = clang_getTypeDeclaration(type);
-      type = clang_getTypedefDeclUnderlyingType(cursor);
+      type = underlying(cursor);
       result["type"] = ::type(type);
       return result;
     }
@@ -191,17 +197,23 @@ StringHandle name(CXCursor cursor) {
   return clang_getCursorSpelling(cursor);
 }
 
+bool canonical(CXCursor cursor) {
+  auto can = clang_getCanonicalCursor(cursor);
+  return clang_equalCursors(cursor, can);
+}
+
 template <CXCursorKind>
 struct Handler {
-  static void process(CXCursor cursor) {};
+  static CXChildVisitResult process(CXCursor cursor) {
+    return CXChildVisit_Recurse;
+  };
 };
 
 template <>
 struct Handler<CXCursorKind::CXCursor_FunctionDecl> {
-  static void process(CXCursor cursor) {
-    auto canonical = clang_getCanonicalCursor(cursor);
-    if (!clang_equalCursors(cursor, canonical)) {
-      return;
+  static CXChildVisitResult process(CXCursor cursor) {
+    if (!canonical(cursor)) {
+      return CXChildVisit_Continue;
     }
 
     json::Array args;
@@ -221,15 +233,52 @@ struct Handler<CXCursorKind::CXCursor_FunctionDecl> {
       {"result", ::type(::result(cursor))},
       {"args", args}
     });
+
+    return CXChildVisit_Recurse;
   };
 };
 
 template <>
+struct Handler<CXCursorKind::CXCursor_TypedefDecl> {
+  static CXChildVisitResult process(CXCursor cursor) {
+    if (declaration(underlying(cursor)).kind == CXCursorKind::CXCursor_EnumDecl) {
+      (*current_enum)["name"] = ::spelling(clang_getCursorType(cursor)).asString();
+    }
+    return CXChildVisit_Continue;
+  }
+};
+
+template <>
+struct Handler<CXCursorKind::CXCursor_EnumDecl> {
+  static CXChildVisitResult process(CXCursor cursor) {
+    if (current_enum) {
+      enums.emplace_back(std::move(*current_enum));
+    }
+
+    current_enum = std::make_shared<json::Value>();
+    auto& ref = *current_enum;
+    auto is_typedef = clang_getCursorType(cursor).kind == CXTypeKind::CXType_Typedef;
+    ref["name"] = is_typedef ? ::name(declaration(underlying(cursor))).asString() : ::spelling(cursor).asString();
+    ref["values"] = json::Object();
+    ref["type"] = ::spelling(clang_getEnumDeclIntegerType(cursor)).asString();
+    return CXChildVisit_Recurse;
+  }
+};
+
+template <>
+struct Handler<CXCursorKind::CXCursor_EnumConstantDecl> {
+  static CXChildVisitResult process(CXCursor cursor) {
+    auto& values = (*current_enum)["values"].as<json::Object>();
+    values[::spelling(cursor).asString()] = json::Number(clang_getEnumConstantDeclValue(cursor));
+    return CXChildVisit_Recurse;
+  }
+};
+
+template <>
 struct Handler<CXCursorKind::CXCursor_MacroDefinition> {
-  static void process(CXCursor cursor) {
+  static CXChildVisitResult process(CXCursor cursor) {
     auto res = translateMacro(cursor);
     auto val = std::get<1>(res);
-
     /*
     char* end;
     auto coerced = std::strtoll(val.data(), &end, 0);
@@ -240,14 +289,16 @@ struct Handler<CXCursorKind::CXCursor_MacroDefinition> {
       std::cout << "string: " << std::get<0>(res) << " " << std::get<1>(res) << std::endl;
     }
     */
+    return CXChildVisit_Recurse;
   };
 };
 
 template <>
 struct Handler<CXCursorKind::CXCursor_Namespace> {
-  static void process(CXCursor cursor) {
+  static CXChildVisitResult process(CXCursor cursor) {
     auto ns = ::spelling(cursor);
     //std::cout << "entered namespace: " << ns << std::endl;
+    return CXChildVisit_Recurse;
   }
 };
 
@@ -260,14 +311,17 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData data) 
   // return CXChildVisit_[Break|Continue|Recurse]
   switch (cursor.kind) {
     case CXCursor_FunctionDecl:
-      Handler<CXCursor_FunctionDecl>::process(cursor);
-      break;
+      return Handler<CXCursor_FunctionDecl>::process(cursor);
     case CXCursor_MacroDefinition:
-      Handler<CXCursor_MacroDefinition>::process(cursor);
-      break;
+      return Handler<CXCursor_MacroDefinition>::process(cursor);
     case CXCursor_Namespace:
-      Handler<CXCursor_Namespace>::process(cursor);
-      break;
+      return Handler<CXCursor_Namespace>::process(cursor);
+    case CXCursor_EnumDecl:
+      return Handler<CXCursor_EnumDecl>::process(cursor);
+    case CXCursor_EnumConstantDecl:
+      return Handler<CXCursor_EnumConstantDecl>::process(cursor);
+    case CXCursor_TypedefDecl:
+      return Handler<CXCursor_TypedefDecl>::process(cursor);
     default: {
       // printCursor(cursor);
     }
@@ -298,7 +352,12 @@ int main(int argc, char* argv[]) {
   clang_disposeTranslationUnit(tu);
   clang_disposeIndex(ctx);
 
+  if (current_enum) {
+    enums.emplace_back(std::move(*current_enum));
+  }
+
   results["macros"] = macros;
   results["functions"] = functions;
+  results["enums"] = enums;
   std::cout << results << std::endl;
 }

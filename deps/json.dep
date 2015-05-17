@@ -1,0 +1,6 @@
+register({
+  id: 'json',
+  language: 'c++',
+  type: 'external',
+  includedirs: ['json/src']
+});

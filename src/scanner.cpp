@@ -1,6 +1,5 @@
-#include <serializer/json/json.h>
-#include <serializer/json/impl.h>
-#include <serializer/string_escaper.h>
+#include <serialization.hpp>
+#include <json.hpp>
 
 #include <iostream>
 #include <vector>
@@ -9,11 +8,13 @@
 
 #include <clang-c/Index.h>
 
-json::Value results;
-json::Array functions;
-json::Array macros;
-json::Array enums;
-std::shared_ptr<json::Value> current_enum;
+using json = nlohmann::json;
+
+json results;
+json functions = json::array();
+json macros = json::array();
+json enums = json::array();
+std::shared_ptr<json> current_enum;
 
 struct StringHandle {
   StringHandle(CXString str) : data(str) {}
@@ -70,7 +71,7 @@ std::tuple<std::string, std::string> translateMacro(CXCursor cursor) {
     clang_disposeString(str);
   }
 
-  macros.emplace_back(json::Object{
+  macros.push_back({
     {"name", name},
     {"value", value}
   });
@@ -124,10 +125,10 @@ StringHandle spelling(CXCursor cursor) {
   return clang_getCursorSpelling(cursor);
 }
 
-json::Value type(CXType type) {
+json type(CXType type) {
   //std::cout << spelling(type) << " " << canonical(type).kind << " " << type.kind << std::endl;
   bool isConst = clang_isConstQualifiedType(type);
-  json::Object result;
+  json result;
   if (isConst) {
     result["const"] = isConst;
   }
@@ -210,7 +211,7 @@ json::Value type(CXType type) {
   return result;
 }
 
-json::Value type(CXCursor cursor) {
+json type(CXCursor cursor) {
   return ::type(clang_getCursorType(cursor));
 }
 
@@ -241,17 +242,17 @@ struct Handler<CXCursorKind::CXCursor_FunctionDecl> {
       return CXChildVisit_Continue;
     }
 
-    json::Array args;
+    json args = json::array();
     auto nargs = clang_Cursor_getNumArguments(cursor);
     for (auto idx = 0u; idx < nargs; ++idx) {
       auto arg = clang_Cursor_getArgument(cursor, idx);
-      args.emplace_back(json::Object{
+      args.push_back({
         {"name", ::name(arg).asString()},
         {"type", ::type(arg)}
       });
     }
 
-    functions.emplace_back(json::Object{
+    functions.push_back({
       {"name", ::name(cursor).asString()},
       {"full", ::fullname(cursor).asString()},
       {"signature", ::type(cursor)},
@@ -277,14 +278,14 @@ template <>
 struct Handler<CXCursorKind::CXCursor_EnumDecl> {
   static CXChildVisitResult process(CXCursor cursor) {
     if (current_enum) {
-      enums.emplace_back(std::move(*current_enum));
+      enums.push_back(std::move(*current_enum));
     }
 
-    current_enum = std::make_shared<json::Value>();
+    current_enum = std::make_shared<json>();
     auto& ref = *current_enum;
     auto is_typedef = clang_getCursorType(cursor).kind == CXTypeKind::CXType_Typedef;
     ref["name"] = is_typedef ? ::name(declaration(underlying(cursor))).asString() : ::spelling(cursor).asString();
-    ref["values"] = json::Object();
+    ref["values"] = json::object();
     ref["type"] = ::spelling(clang_getEnumDeclIntegerType(cursor)).asString();
     return CXChildVisit_Recurse;
   }
@@ -293,8 +294,8 @@ struct Handler<CXCursorKind::CXCursor_EnumDecl> {
 template <>
 struct Handler<CXCursorKind::CXCursor_EnumConstantDecl> {
   static CXChildVisitResult process(CXCursor cursor) {
-    auto& values = (*current_enum)["values"].as<json::Object>();
-    values[::spelling(cursor).asString()] = json::Number(clang_getEnumConstantDeclValue(cursor));
+    auto& values = (*current_enum)["values"];
+    values[::spelling(cursor).asString()] = clang_getEnumConstantDeclValue(cursor);
     return CXChildVisit_Recurse;
   }
 };
@@ -378,7 +379,7 @@ int main(int argc, char* argv[]) {
   clang_disposeIndex(ctx);
 
   if (current_enum) {
-    enums.emplace_back(std::move(*current_enum));
+    enums.push_back(std::move(*current_enum));
   }
 
   results["macros"] = macros;

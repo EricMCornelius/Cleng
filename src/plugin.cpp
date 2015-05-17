@@ -1,4 +1,5 @@
-#include "serialization.hpp"
+#include <serialization.hpp>
+#include <json.hpp>
 
 #include <iostream>
 #include <map>
@@ -11,12 +12,13 @@
 #include <functional>
 
 using namespace clang;
+using json = nlohmann::json;
 
 namespace {
 
 class JsonASTPrinter : public ASTConsumer {
 public:
-  explicit JsonASTPrinter(ASTContext& context, json::Array& output) : _context(context), _output(output) { }
+  explicit JsonASTPrinter(ASTContext& context, json& output) : _context(context), _output(output) { }
 
   virtual void HandleTranslationUnit(clang::ASTContext& context) {
     //Context.getTranslationUnitDecl();
@@ -24,9 +26,9 @@ public:
 
   virtual bool HandleTopLevelDecl(DeclGroupRef g) {
     for (auto& decl : g) {
-      json::Object obj;
+      json obj;
       dispatch_decl(obj, *decl, _context);
-      _output.emplace_back(obj);
+      _output.push_back(obj);
     }
 
     return true;
@@ -34,18 +36,18 @@ public:
 
 private:
   ASTContext& _context;
-  json::Array& _output;
+  json& _output;
 };
 
 class PreprocessorCallbacks : public PPCallbacks {
 public:
-  PreprocessorCallbacks(Preprocessor& processor, json::Array& output) : _processor(processor), _output(output) { }
+  PreprocessorCallbacks(Preprocessor& processor, json& output) : _processor(processor), _output(output) { }
 
   virtual void MacroDefined(const Token& identifier, const MacroDirective* info) {
-    json::Object obj;
+    json obj;
     visit(obj, identifier, _processor);
     visit(obj, *info, _processor);
-    _output.emplace_back(obj);
+    _output.push_back(obj);
   }
 
   virtual void FileChanged(SourceLocation loc, FileChangeReason reason, SrcMgr::CharacteristicKind type, FileID id) {
@@ -58,7 +60,7 @@ public:
 
 private:
   Preprocessor& _processor;
-  json::Array& _output;
+  json& _output;
 };
 
 typedef std::map<std::string, std::function<void()>> CallbackMap;
@@ -73,22 +75,19 @@ CallbackMap ArgumentActions = initArgumentActions();
 
 class PrintASTAction : public PluginASTAction {
 protected:
-  virtual ASTConsumer* CreateASTConsumer(CompilerInstance &Compiler, llvm::StringRef InFile) {
-    static JsonASTPrinter printer(Compiler.getASTContext(), _output);
-    return &printer;
+  virtual std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &Compiler, llvm::StringRef InFile) {
+    return std::make_unique<JsonASTPrinter>(Compiler.getASTContext(), _output);
   }
 
   virtual void ExecuteAction() {
     auto& pp = getCompilerInstance().getPreprocessor();
-    static PreprocessorCallbacks cbs(pp, _output);
-    pp.addPPCallbacks(&cbs);
+    auto cbs = std::make_unique<PreprocessorCallbacks>(pp, _output);
+    pp.addPPCallbacks(std::move(cbs));
 
     PluginASTAction::ExecuteAction();
 
     std::ofstream output("output.json");
-    json::OutStream out(output);
-    format(out, _output);
-
+    output << _output.dump();
   }
 
   bool ParseArgs(const CompilerInstance &CI,
@@ -113,7 +112,7 @@ protected:
     return true;
   }
 
-  json::Array _output;
+  json _output;
 };
 
 }

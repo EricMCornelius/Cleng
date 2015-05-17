@@ -3,15 +3,7 @@ register({
   language: 'c++',
   type: 'shared_lib',
   sources: ['src/plugin.cpp'],
-  compiler_flags: env.compiler_flags.concat(['-fno-rtti', '-O2']),
-  deps: ['clang', 'SerializerCore', 'serializer']
-});
-
-register({
-  id: 'cleng',
-  language: 'c++',
-  type: 'external',
-  includedirs: ['include']
+  deps: ['clang', 'json']
 });
 
 register({
@@ -19,14 +11,12 @@ register({
   language: 'c++',
   type: 'application',
   sources: ['src/scanner.cpp'],
-  deps: ['clang-c', 'SerializerCore', 'serializer']
+  deps: ['clang', 'json']
 });
 
 register({
-  id: 'clang-c',
+  id: 'cleng',
   language: 'c++',
   type: 'external',
-  includedirs: ['/usr/lib/llvm-3.5/include'],
-  libdirs: [],
-  libs: ['clang']
+  includedirs: ['include']
 });

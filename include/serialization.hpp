@@ -1,5 +1,7 @@
 #pragma once
 
+#include <json.hpp>
+
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/AST/ASTConsumer.h"
@@ -11,22 +13,20 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/Lex/Preprocessor.h"
 
-#include <serializer/json/json.h>
-#include <serializer/json/impl.h>
-#include <serializer/string_escaper.h>
-
 #include <iostream>
+
+using json = nlohmann::json;
 
 template <typename Type, typename Context>
 struct JsonVisitor;
 
 template <typename Decl, typename Context>
-void visit(json::Object& obj, const Decl& decl, const Context& ctx) {
+void visit(json& obj, const Decl& decl, const Context& ctx) {
   JsonVisitor<Decl, Context>::visit(obj, decl, ctx);
 }
 
 template <typename Context>
-void dispatch_decl(json::Object& obj, const clang::Decl& decl, const Context& ctx) {
+void dispatch_decl(json& obj, const clang::Decl& decl, const Context& ctx) {
   switch (decl.getKind()) {
     #define ABSTRACT_DECL(DECL)
     #define DECL(CLASS, BASE) \
@@ -40,7 +40,7 @@ void dispatch_decl(json::Object& obj, const clang::Decl& decl, const Context& ct
 
 template <typename Type, typename Context>
 struct JsonVisitor<Type*, Context> {
-  static void visit(json::Object& obj, Type* decl, const Context& ctx) {
+  static void visit(json& obj, Type* decl, const Context& ctx) {
     ::visit(obj, *decl, ctx);
   }
 };
@@ -48,7 +48,7 @@ struct JsonVisitor<Type*, Context> {
 #define VISIT_SPEC(Type, ...)                                                  \
 template <typename Context>                                                    \
 struct JsonVisitor<Type, Context> {                                            \
-  static void visit(json::Object& obj, const Type& decl, const Context& ctx) {   \
+  static void visit(json& obj, const Type& decl, const Context& ctx) {   \
     __VA_ARGS__                                                                \
   }                                                                            \
 };
@@ -125,11 +125,11 @@ DEFAULT_VISIT_SPEC(clang::MSPropertyDecl);
 DEFAULT_VISIT_SPEC(clang::OMPThreadPrivateDecl);
 
 VISIT_SPEC(clang::TemplateArgumentList,
-  json::Array arguments;
+  json arguments = json::array();
   for (auto idx = 0; idx < decl.size(); ++idx) {
-    json::Object argument;
+    json argument;
     ::visit(argument, decl[idx], ctx);
-    arguments.emplace_back(argument);
+    arguments.push_back(argument);
   }
   obj["templateArguments"] = arguments;
 );
@@ -146,25 +146,25 @@ VISIT_SPEC(clang::TemplateArgument,
   if (val)
     ::visit(obj, *val, ctx);
 
-  obj["isDeclForReferenceParam"] = decl.isDeclForReferenceParam();
+  // obj["isDeclForReferenceParam"] = decl.isDeclForReferenceParam();
 
   if (decl.pack_size() > 0) {
-    json::Array parameter_pack;
+    json parameter_pack = json::array();
     for (auto itr = decl.pack_begin(); itr != decl.pack_end(); ++itr) {
-      json::Object param;
+      json param;
       ::visit(param, *itr, ctx);
-      parameter_pack.emplace_back(param);
+      parameter_pack.push_back(param);
     }
     obj["parameterPack"] = parameter_pack;
   }
 );
 
 VISIT_SPEC(clang::TemplateParameterList,
-  json::Array parameters;
+  json parameters = json::array();
   for (const auto& declItr : decl) {
-    json::Object parameter;
+    json parameter;
     ::visit(parameter, *declItr, ctx);
-    parameters.emplace_back(parameter);
+    parameters.push_back(parameter);
   }
   obj["templateParameters"] = parameters;
 );
@@ -180,23 +180,23 @@ VISIT_SPEC(clang::TemplateDecl,
 VISIT_SPEC(clang::ClassTemplateDecl,
   obj["isThisDeclarationADefinition"] = decl.isThisDeclarationADefinition();
 
-  json::Array specializations;
+  json specializations = json::array();
   auto& cdecl = const_cast<clang::ClassTemplateDecl&>(decl);
   for (auto itr = cdecl.spec_begin(); itr != cdecl.spec_end(); ++itr) {
-    json::Object specialization;
+    json specialization;
     ::visit(specialization, *itr, ctx);
-    specializations.emplace_back(specialization);
+    specializations.push_back(specialization);
   }
   obj["specializations"] = specializations;
 
-  /* TODO: api changed in clang 3.5
-  json::Array partial_specializations;
+  /* TODO: api changed in clang 3.6
+  json partial_specializations = json::array();
   clang::SmallVectorImpl<clang::ClassTemplatePartialSpecializationDecl*> vec;
   cdecl.getPartialSpecializations(vec);
   for (auto& itr : vec) {
-    json::Object partial_specialization;
+    json partial_specialization;
     ::visit(partial_specialization, *itr, ctx);
-    partial_specializations.emplace_back(partial_specialization);
+    partial_specializations.push_back(partial_specialization);
   }
   obj["partial_specializations"] = partial_specializations;
   */
@@ -208,12 +208,12 @@ VISIT_SPEC(clang::ClassTemplateDecl,
 VISIT_SPEC(clang::FunctionTemplateDecl,
   obj["isThisDeclarationADefinition"] = decl.isThisDeclarationADefinition();
 
-  json::Array specializations;
+  json specializations = json::array();
   auto& cdecl = const_cast<clang::FunctionTemplateDecl&>(decl);
   for (auto itr = cdecl.spec_begin(); itr != cdecl.spec_end(); ++itr) {
-    json::Object specialization;
+    json specialization;
     ::visit(specialization, *itr, ctx);
-    specializations.emplace_back(specialization);
+    specializations.push_back(specialization);
   }
   obj["specializations"] = specializations;
 
@@ -271,11 +271,11 @@ VISIT_SPEC(clang::RecordDecl,
   //obj["hasVolatileMember"] = decl.hasVolatileMember();
   obj["isInjectedClassName"] = decl.isInjectedClassName();
 
-  json::Array fields;
+  json fields = json::array();
   for (auto itr = decl.field_begin(); itr != decl.field_end(); ++itr) {
-    json::Object field;
+    json field;
     ::visit(field, *itr, ctx);
-    fields.emplace_back(field);
+    fields.push_back(field);
   }
   obj["fields"] = fields;
 
@@ -286,7 +286,7 @@ VISIT_SPEC(clang::CXXRecordDecl,
   // CXXRecordDecl
   obj["hasDefinition"] = decl.hasDefinition();
 
-  if (obj["hasDefinition"].as<bool>()) {
+  if (obj["hasDefinition"].get<bool>()) {
 
   obj["isDynamicClass"] = decl.isDynamicClass();
   obj["hasAnyDependentBases"] = decl.hasAnyDependentBases();
@@ -352,43 +352,43 @@ VISIT_SPEC(clang::CXXRecordDecl,
   obj["mayBeAbstract"] = decl.mayBeAbstract();
   obj["isDependentLambda"] = decl.isDependentLambda();
 
-  json::Array bases;
+  json bases = json::array();
   for (auto itr = decl.bases_begin(); itr != decl.bases_end(); ++itr) {
-    json::Object base;
+    json base;
     ::visit(base, *itr, ctx);
-    bases.emplace_back(base);
+    bases.push_back(base);
   };
   obj["bases"] = bases;
 
-  json::Array vbases;
+  json vbases = json::array();
   for (auto itr = decl.vbases_begin(); itr != decl.vbases_end(); ++itr) {
-    json::Object vbase;
+    json vbase;
     ::visit(vbase, *itr, ctx);
-    vbases.emplace_back(vbase);
+    vbases.push_back(vbase);
   }
   obj["vbases"] = vbases;
 
-  json::Array methods;
+  json methods = json::array();
   for (auto itr = decl.method_begin(); itr != decl.method_end(); ++itr) {
-    json::Object method;
+    json method;
     ::visit(method, *itr, ctx);
-    methods.emplace_back(method);
+    methods.push_back(method);
   }
   obj["methods"] = methods;
 
-  json::Array ctors;
+  json ctors = json::array();
   for (auto itr = decl.ctor_begin(); itr != decl.ctor_end(); ++itr) {
-    json::Object ctor;
+    json ctor;
     ::visit(ctor, *itr, ctx);
-    ctors.emplace_back(ctor);
+    ctors.push_back(ctor);
   }
   obj["ctors"] = ctors;
 
-  json::Array friends;
+  json friends = json::array();
   for (auto itr = decl.friend_begin(); itr != decl.friend_end(); ++itr) {
-    json::Object friend_;
+    json friend_;
     ::visit(friend_, *itr, ctx);
-    friends.emplace_back(friend_);
+    friends.push_back(friend_);
   }
   obj["friends"] = friends;
 
@@ -404,7 +404,7 @@ VISIT_SPEC(clang::CXXBaseSpecifier,
   obj["getInheritConstructors"] = decl.getInheritConstructors();
   obj["type"] = decl.getType().getAsString();
 
-  json::Object src;
+  json src;
   ::visit(src, decl.getSourceRange(), ctx);
   obj["sourceRange"] = src;
 );
@@ -449,7 +449,7 @@ DEFAULT_VISIT_SPEC(clang::UsingDirectiveDecl);
 DEFAULT_VISIT_SPEC(clang::UsingShadowDecl);
 
 VISIT_SPEC(clang::FieldDecl,
-  obj["index"] = json::Number(decl.getFieldIndex());
+  obj["index"] = decl.getFieldIndex();
   obj["isMutable"] = decl.isMutable();
   obj["isBitField"] = decl.isBitField();
   obj["isUnnamedBitfield"] = decl.isUnnamedBitfield();
@@ -519,11 +519,11 @@ VISIT_SPEC(clang::FunctionDecl,
   obj["isImplicitlyInstantiable"] = decl.isImplicitlyInstantiable();
 
   obj["returnType"] = decl.getReturnType().getAsString();
-  json::Array params;
+  json params = json::array();
   for (auto itr = decl.param_begin(); itr != decl.param_end(); ++itr) {
-    json::Object param;
+    json param;
     ::visit(param, *itr, ctx);
-    params.emplace_back(param);
+    params.push_back(param);
   }
   obj["params"] = params;
 
@@ -611,8 +611,8 @@ VISIT_SPEC(clang::VarDecl,
 DEFAULT_VISIT_SPEC(clang::ImplicitParamDecl);
 
 VISIT_SPEC(clang::ParmVarDecl,
-  obj["functionScopeDepth"] = json::Number(decl.getFunctionScopeDepth());
-  obj["functionScopeIndex"] = json::Number(decl.getFunctionScopeIndex());
+  obj["functionScopeDepth"] = decl.getFunctionScopeDepth();
+  obj["functionScopeIndex"] = decl.getFunctionScopeIndex();
   obj["isKNRPromoted"] = decl.isKNRPromoted();
   obj["hasDefaultArg"] = decl.hasDefaultArg();
   obj["hasUnparsedDefaultArg"] = decl.hasUnparsedDefaultArg();
@@ -626,7 +626,7 @@ VISIT_SPEC(clang::ParmVarDecl,
 VISIT_SPEC(clang::EnumConstantDecl,
   // radix 10
   const auto& initVal = decl.getInitVal().toString(10);
-  obj["value"] = json::Number(std::atoi(initVal.c_str()));
+  obj["value"] = std::atoi(initVal.c_str());
 
   ::visit(obj, static_cast<const clang::ValueDecl&>(decl), ctx);
 );
@@ -651,13 +651,13 @@ VISIT_SPEC(clang::MacroInfo,
   std::stringstream cat;
   for (auto itr = decl.tokens_begin(); itr != decl.tokens_end(); ++itr)
     cat << ctx.getSpelling(*itr);
-  obj["definition"] = escape_string(cat.str());
+  obj["definition"] = cat.str();
 
-  json::Object begin;
+  json begin;
   ::visit(begin, decl.getDefinitionLoc(), ctx);
   obj["begin"] = begin;
 
-  json::Object end;
+  json end;
   ::visit(end, decl.getDefinitionEndLoc(), ctx);
   obj["end"] = end;
 
@@ -674,11 +674,11 @@ VISIT_SPEC(clang::Token,
 );
 
 VISIT_SPEC(clang::SourceRange,
-  json::Object begin;
+  json begin;
   ::visit(begin, decl.getBegin(), ctx);
   obj["begin"] = begin;
 
-  json::Object end;
+  json end;
   ::visit(end, decl.getEnd(), ctx);
   obj["end"] = end;
 );
@@ -687,8 +687,8 @@ VISIT_SPEC(clang::SourceLocation,
   const auto& sm = ctx.getSourceManager();
   clang::FullSourceLoc loc(decl, sm);
   if (loc.isValid()) {
-    obj["line"] = json::Number(loc.getSpellingLineNumber());
-    obj["column"] = json::Number(loc.getSpellingColumnNumber());
+    obj["line"] = loc.getSpellingLineNumber();
+    obj["column"] = loc.getSpellingColumnNumber();
 
     const auto fileEntry = sm.getFileEntryForID(loc.getFileID());
     if (fileEntry != nullptr) {
@@ -726,17 +726,17 @@ VISIT_SPEC(clang::DeclContext,
   obj["hasExternalLexicalStorage"] = decl.hasExternalLexicalStorage();
   obj["hasExternalVisibleStorage"] = decl.hasExternalVisibleStorage();
 
-  json::Array declarations;
+  json declarations = json::array();
   for (auto itr = decl.decls_begin(); itr != decl.decls_end(); ++itr) {
-    json::Object declaration;
+    json declaration;
     dispatch_decl(declaration, **itr, ctx);
-    declarations.emplace_back(declaration);
+    declarations.push_back(declaration);
   }
   obj["context"] = declarations;
 );
 
 VISIT_SPEC(clang::Decl,
-  json::Object src;
+  json src;
   ::visit(src, decl.getSourceRange(), ctx);
   obj["sourceRange"] = src;
 
@@ -746,8 +746,8 @@ VISIT_SPEC(clang::Decl,
 /*
 template <typename Context>
 struct JsonVisitor<clang::Decl, Context> {
-  static void visit(json::Object& obj, const clang::Decl& decl, const Context& ctx) {
-    json::Object src;
+  static void visit(json& obj, const clang::Decl& decl, const Context& ctx) {
+    json src;
     ::visit(src, decl.getSourceRange(), ctx);
     obj["sourceRange"] = src;
 
@@ -767,14 +767,14 @@ struct JsonVisitor<clang::Decl, Context> {
 
 template <typename Context>
 struct JsonVisitor<clang::Decl, Context> {
-  static void visit(json::Object& obj, const clang::Decl& decl, const Context& ctx) {
+  static void visit(json& obj, const clang::Decl& decl, const Context& ctx) {
     obj["node_type"] = decl.getDeclKindName();
     //if (clang::NamedDecl::classof(&decl))
       //::visit(obj, static_cast<const clang::NamedDecl&>(decl), ctx);
       //obj["name"] = static_cast<const clang::NamedDecl&>(decl).getNameAsString();
     //}
 
-    json::Object src;
+    json src;
     ::visit(src, decl.getSourceRange(), ctx);
     obj["sourceRange"] = src;
 
@@ -790,11 +790,11 @@ struct JsonVisitor<clang::Decl, Context> {
 
     if (clang::DeclContext::classof(&decl)) {
       const auto declCtx = clang::Decl::castToDeclContext(&decl);
-      json::Array arr;
+      json arr = json::array();
       for (auto itr = declCtx->decls_begin(); itr != declCtx->decls_end(); ++itr) {
-        json::Object child;
+        json child;
         ::visit(child, *itr, ctx);
-        arr.emplace_back(child);
+        arr.push_back(child);
       }
       obj["context"] = arr;
     }

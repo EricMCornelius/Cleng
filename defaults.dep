@@ -1,5 +1,5 @@
 global.env.defines = ['__STDC_CONSTANT_MACROS', '__STDC_FORMAT_MACROS', '__STDC_LIMIT_MACROS'];
-global.env.compiler = 'clang++-3.5';
-global.env.compiler_flags = ['-std=c++11'];
-global.env.includedirs = ['/usr/lib/llvm-3.5/include'];
-global.env.libdirs = ['/usr/lib/llvm-3.5/lib'];
+global.env.compiler = 'clang++-3.6';
+global.env.compiler_flags = ['-std=c++14', '-g', '-O0'];
+global.env.includedirs = ['/usr/lib/llvm-3.6/include'];
+global.env.libdirs = ['/usr/lib/llvm-3.6/lib'];
